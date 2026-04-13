@@ -8,20 +8,13 @@ Get up and running with the approval inbox in under 5 minutes.
 - **npm** ≥ 9.x (included with Node.js)
 - **git** for cloning
 
-## Step 1: Setup
+## Setup
 
 ```bash
-# Clone the repository
 git clone <repo-url>
 cd project-squad-sdk-example-approval
-
-# Install dependencies
 npm install
-
-# Build TypeScript
 npm run build
-
-# Verify tests pass
 npm test
 ```
 
@@ -34,19 +27,17 @@ npm test
 ✓ 30+ passing
 ```
 
-## Step 2: Your First Approval Workflow
+---
 
-### Create a pending approval
-
-Run the following Node.js script to create a PR approval request:
+## Step 1: Create an Approval Request
 
 ```bash
+npm run build
 node -e "
-import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
-  const queue = new ApprovalQueue();
+import('./dist/index.js').then(m => {
+  const queue = new m.ApprovalQueue();
   
-  // Create a GitHub PR approval request
-  const pr = ApprovalItem.fromGitHubPR(
+  const pr = m.ApprovalItem.fromGitHubPR(
     42,
     'https://github.com/bradygaster/squad-sdk/pull/42',
     'feat: add webhook retry logic',
@@ -55,71 +46,70 @@ import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
   pr.context.agentReasoning = 'Agent determined this affects critical path; needs human review';
   pr.context.affectedFiles = ['src/webhooks/retry.ts', 'test/webhooks/retry.test.ts'];
   
-  const decision = ApprovalItem.fromDecisionFile(
-    '.squad/decisions/inbox/use-exponential-backoff.md',
-    'Architecture decision: exponential backoff strategy',
-    'Proposed by: AgentSmith. Rationale: reduces API load on retries.'
-  );
-  
-  const escalation = ApprovalItem.fromADOWorkItem(
-    'devops-2024-001',
-    'https://dev.azure.com/bradygaster/squad/-/workitems/12345',
-    'Budget allocation: $5000 for new monitoring tools',
-    'high'
-  );
-  
   queue.add(pr);
-  queue.add(decision);
-  queue.add(escalation);
-  
-  console.log('✓ Created 3 pending approvals');
-}).catch(e => console.error(e));
-"
-```
-
-### List pending approvals
-
-```bash
-node -e "
-import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue, InboxCommand }) => {
-  const queue = new ApprovalQueue();
-  
-  // Add samples
-  const pr = ApprovalItem.fromGitHubPR(42, 'https://github.com/.../42', 'feat: add webhook retry logic', 'Improves resilience');
-  const decision = ApprovalItem.fromDecisionFile('.squad/decisions/inbox/use-backoff.md', 'Architecture: exponential backoff', 'Proposed by Agent');
-  queue.add(pr);
-  queue.add(decision);
-  
-  const cmd = new InboxCommand(queue);
-  console.log(await cmd.list());
+  console.log('✓ Created approval:', pr.id);
 }).catch(e => console.error(e));
 "
 ```
 
 **Expected output:**
 ```
-ID                        Type               Title                                      Age
--------------------------------------------------------------------------------------------
-github-pr-42              github-pr          feat: add webhook retry logic               1s
-decision-1705328000000    decision           Architecture: exponential backoff          1s
-
-Total: 2 pending approvals
+✓ Created approval: github-pr-42
 ```
 
-### Approve an item
+---
+
+## Step 2: List Pending Approvals
 
 ```bash
+npm run build
 node -e "
-import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
-  const queue = new ApprovalQueue();
+import('./dist/index.js').then(m => {
+  const queue = new m.ApprovalQueue();
   
-  const pr = ApprovalItem.fromGitHubPR(42, 'https://github.com/.../42', 'feat: add webhook retry', 'Test');
+  const pr = m.ApprovalItem.fromGitHubPR(
+    42,
+    'https://github.com/bradygaster/squad-sdk/pull/42',
+    'feat: add webhook retry logic',
+    'Improves resilience'
+  );
   queue.add(pr);
   
-  // Approve the PR
+  const cmd = new m.InboxCommand(queue);
+  console.log(cmd.list());
+}).catch(e => console.error(e));
+"
+```
+
+**Expected output:**
+```
+ID                   Type           Title                              Age
+─────────────────────────────────────────────────────────────────────────────
+github-pr-42         github-pr      feat: add webhook retry logic      1s
+
+Total: 1 pending approval
+```
+
+---
+
+## Step 3: Approve an Item
+
+```bash
+npm run build
+node -e "
+import('./dist/index.js').then(m => {
+  const queue = new m.ApprovalQueue();
+  
+  const pr = m.ApprovalItem.fromGitHubPR(
+    42,
+    'https://github.com/bradygaster/squad-sdk/pull/42',
+    'feat: add webhook retry',
+    'Test'
+  );
+  queue.add(pr);
+  
   const item = queue.approve('github-pr-42', 'alice@example.com');
   
-  console.log('Approved:', item.title);
   console.log('Status:', item.status);
   console.log('Approved by:', item.metadata.approvedBy);
   console.log('Approved at:', item.metadata.approvedAt);
@@ -129,34 +119,35 @@ import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
 
 **Expected output:**
 ```
-Approved: feat: add webhook retry
 Status: approved
 Approved by: alice@example.com
 Approved at: 2024-01-15T10:30:45.123Z
 ```
 
-### Reject an item with reason
+---
+
+## Step 4: Reject an Item
 
 ```bash
+npm run build
 node -e "
-import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
-  const queue = new ApprovalQueue();
+import('./dist/index.js').then(m => {
+  const queue = new m.ApprovalQueue();
   
-  const decision = ApprovalItem.fromDecisionFile(
+  const decision = m.ApprovalItem.fromDecisionFile(
     '.squad/decisions/inbox/use-backoff.md',
     'Exponential backoff strategy',
     'Agent reasoning...'
   );
   queue.add(decision);
   
-  // Reject with mandatory reason
   const item = queue.reject(
-    'decision-1705328000000',
+    'decision-' + decision.id,
     'bob@example.com',
     'Linear backoff is simpler; reconsider after performance tests'
   );
   
-  console.log('Rejected:', item.title);
+  console.log('Status:', item.status);
   console.log('Reason:', item.metadata.rejectionReason);
   console.log('Rejected by:', item.metadata.rejectedBy);
 }).catch(e => console.error(e));
@@ -165,80 +156,104 @@ import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
 
 **Expected output:**
 ```
-Rejected: Exponential backoff strategy
+Status: rejected
 Reason: Linear backoff is simpler; reconsider after performance tests
 Rejected by: bob@example.com
 ```
 
-### View approval audit trail
+---
+
+## Step 5: Check Approval Audit Trail
 
 ```bash
+npm run build
 node -e "
-import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
-  const queue = new ApprovalQueue();
+import('./dist/index.js').then(m => {
+  const queue = new m.ApprovalQueue();
   
-  const pr = ApprovalItem.fromGitHubPR(42, 'https://github.com/.../42', 'feat: add webhook retry', 'Test');
+  const pr = m.ApprovalItem.fromGitHubPR(
+    42,
+    'https://github.com/bradygaster/squad-sdk/pull/42',
+    'feat: add webhook retry',
+    'Test'
+  );
   queue.add(pr);
   queue.approve('github-pr-42', 'alice@example.com');
   
   const item = queue.get('github-pr-42');
-  console.log('Item:', item.title);
+  
+  console.log('─ Approval Audit Trail');
+  console.log('Title:', item.title);
   console.log('Type:', item.type);
   console.log('Status:', item.status);
   console.log('Created:', item.createdAt);
-  console.log('Approved by:', item.metadata.approvedBy);
-  console.log('Approved at:', item.metadata.approvedAt);
+  console.log('');
+  console.log('Approval Details:');
+  console.log('  Approved by:', item.metadata.approvedBy);
+  console.log('  Approved at:', item.metadata.approvedAt);
   console.log('');
   console.log('Context:');
-  console.log('  - Reasoning:', item.context.agentReasoning);
-  console.log('  - Files:', item.context.affectedFiles);
-  console.log('  - Decisions:', item.context.relatedDecisions);
+  console.log('  Reasoning:', item.context.agentReasoning || '(not set)');
+  console.log('  Files:', item.context.affectedFiles || '(none)');
 }).catch(e => console.error(e));
 "
 ```
 
 **Expected output:**
 ```
-Item: feat: add webhook retry
+─ Approval Audit Trail
+Title: feat: add webhook retry
 Type: github-pr
 Status: approved
 Created: 2024-01-15T10:30:00.000Z
-Approved by: alice@example.com
-Approved at: 2024-01-15T10:30:45.123Z
+
+Approval Details:
+  Approved by: alice@example.com
+  Approved at: 2024-01-15T10:30:45.123Z
 
 Context:
-  - Reasoning: undefined
-  - Files: undefined
-  - Decisions: undefined
+  Reasoning: (not set)
+  Files: (none)
 ```
 
-## Step 3: Priority Sorting & Stale Detection
+---
+
+## Next Steps: Priority & Stale Detection
 
 ```bash
+npm run build
 node -e "
-import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
-  const queue = new ApprovalQueue();
+import('./dist/index.js').then(m => {
+  const queue = new m.ApprovalQueue();
   
-  // Create items with different ages
-  const old = new ApprovalItem(
+  const old = new m.ApprovalItem(
     'old-pr',
     'github-pr',
     'Old PR (2 hours pending)',
     'Should be stale'
   );
-  old.createdAt = new Date(Date.now() - 2 * 3600000); // 2 hours ago
+  old.createdAt = new Date(Date.now() - 2 * 3600000);
   
-  const fresh = ApprovalItem.fromGitHubPR(99, 'https://github.com/.../99', 'Fresh PR (5 min old)', 'Just created');
-  const escalation = ApprovalItem.fromADOWorkItem('ado-001', 'https://...', 'Budget request', 'high');
+  const fresh = m.ApprovalItem.fromGitHubPR(
+    99,
+    'https://github.com/.../99',
+    'Fresh PR (5 min old)',
+    'Just created'
+  );
+  const escalation = m.ApprovalItem.fromADOWorkItem(
+    'ado-001',
+    'https://...',
+    'Budget request',
+    'high'
+  );
   
   queue.add(old);
   queue.add(fresh);
   queue.add(escalation);
   
   console.log('Sorted by priority (stale + escalations first):');
-  const sorted = queue.sortByPriority();
-  sorted.forEach((item, i) => {
-    console.log(\`  \${i + 1}. \${item.type.padEnd(15)} \${item.title.slice(0, 30)}\`);
+  queue.sortByPriority().forEach((item, i) => {
+    console.log(\`  \${i + 1}. [\${item.type}] \${item.title.slice(0, 40)}\`);
   });
 }).catch(e => console.error(e));
 "
@@ -247,163 +262,20 @@ import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue }) => {
 **Expected output:**
 ```
 Sorted by priority (stale + escalations first):
-  1. ado-escalation   Budget request
-  2. github-pr        Old PR (2 hours pending)
-  3. github-pr        Fresh PR (5 min old)
+  1. [ado-escalation] Budget request
+  2. [github-pr] Old PR (2 hours pending)
+  3. [github-pr] Fresh PR (5 min old)
 ```
-
-## Next Steps
-
-### 1. Integrate with GitHub PRs
-
-Capture PRs automatically with the `needs-approval` label:
-
-```typescript
-import { GitHubApprovalCapture } from './dist/index.js';
-import { GitHubAdapter } from '@bradygaster/squad-sdk';
-
-const github = new GitHubAdapter();
-const capture = new GitHubApprovalCapture(github);
-
-// Listen for PRs with 'needs-approval' label
-capture.onPRLabeled('needs-approval', (pr) => {
-  console.log('PR flagged for approval:', pr.number);
-});
-```
-
-### 2. Monitor Decision Files
-
-Watch `.squad/decisions/inbox/` for new decisions:
-
-```typescript
-import { DecisionApprovalCapture } from './dist/index.js';
-import { DecisionsCollection } from '@bradygaster/squad-sdk';
-
-const decisions = new DecisionsCollection();
-const capture = new DecisionApprovalCapture(decisions);
-
-// Monitor for new decisions
-capture.watchInbox((decision) => {
-  console.log('New decision to approve:', decision.title);
-});
-```
-
-### 3. Setup Stale Monitoring
-
-Run periodic checks for stale approvals using Ralph:
-
-```typescript
-import { ApprovalMonitor } from './dist/index.js';
-import { RalphMonitor } from '@bradygaster/squad-sdk';
-
-const monitor = new ApprovalMonitor(queue);
-
-// Register with Ralph for hourly stale checks
-ralph.register('approval-monitor', {
-  interval: '1h',
-  task: () => monitor.checkStale(3600000)
-});
-```
-
-### 4. Send Notifications
-
-Notify humans via Teams or GitHub Discussions:
-
-```typescript
-import { NotificationDispatcher } from './dist/index.js';
-import { comms } from '@bradygaster/squad-sdk';
-
-const dispatcher = new NotificationDispatcher(comms);
-
-// Send approval notification
-dispatcher.notify({
-  channel: 'teams',
-  message: 'New approval needed: PR #42',
-  link: 'https://github.com/bradygaster/squad-sdk/pull/42'
-});
-```
-
-### 5. Generate Analytics
-
-Track approval metrics:
-
-```typescript
-import { ApprovalAnalytics } from './dist/index.js';
-
-const analytics = new ApprovalAnalytics(queue);
-
-console.log('Median latency:', analytics.medianLatency()); // ms
-console.log('Approval rate:', analytics.approvalRate());   // %
-console.log('Top blockers:', analytics.topBlockers());     // oldest items
-```
-
-## Architecture Layers
-
-```
-┌─────────────────────────────────────────────────┐
-│  CLI Commands (approve, reject, list, delegate) │
-└──────────────┬──────────────────────────────────┘
-               │
-┌──────────────▼──────────────────────────────────┐
-│  ApprovalQueue (in-memory store with filters)   │
-└──────────────┬──────────────────────────────────┘
-               │
-       ┌───────┼────────┐
-       │       │        │
-    ┌──▼──┐ ┌──▼──┐ ┌───▼────┐
-    │Store│ │Item │ │Adapters│
-    └─────┘ └─────┘ └────────┘
-       │       │        │
-       └───────┼────────┘
-               │
-        ┌──────▼──────┐
-        │  Squad SDK  │
-        │ (comms,     │
-        │  github,    │
-        │  ado, etc)  │
-        └─────────────┘
-```
-
-## Troubleshooting
-
-### Build fails with TypeScript errors
-```bash
-npm run build
-# Look for type mismatches in error output
-# Check that @bradygaster/squad-sdk is installed
-npm install
-```
-
-### Tests fail
-```bash
-npm test
-# Run with verbose output
-npm test -- --reporter=verbose
-
-# Run single test file
-npm test -- test/models/ApprovalItem.test.ts
-```
-
-### Approval item not found
-Ensure the item ID matches exactly (case-sensitive):
-```typescript
-queue.get('github-pr-42'); // ✓ correct
-queue.get('GitHub-PR-42'); // ✗ not found
-```
-
-## Resources
-
-- **[README.md](./README.md)** — Project overview and architecture
-- **[PLAN.md](./PLAN.md)** — Full TDD specification and roadmap
-- **[Squad SDK](https://github.com/bradygaster/squad-sdk)** — Core SDK documentation
-
-## Support
-
-For issues or questions:
-1. Check [PLAN.md](./PLAN.md) for design rationale
-2. Review test files in `test/` for usage examples
-3. Open an issue on the repository
 
 ---
 
-**Ready to build?** Start by reading the test files in `test/models/` and `test/queue/` to understand the API.
+## Learn More
+
+- **[README.md](./README.md)** — Architecture, extending, and SDK modules
+- **[PLAN.md](./PLAN.md)** — Full design and roadmap
+- **Test Files** — See `test/models/` and `test/queue/` for API examples
+- **[Squad SDK](https://github.com/bradygaster/squad-sdk)** — Core documentation
+
+---
+
+**Ready to explore?** Check out the test files to see all supported operations, or dive into the README for integration patterns.
