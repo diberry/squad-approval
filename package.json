@@ -1,0 +1,25 @@
+{
+  "name": "project-squad-sdk-example-approval",
+  "version": "0.1.0",
+  "description": "Human Approval & Escalation Hub built on Squad SDK",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@bradygaster/squad-sdk": "latest",
+    "@bradygaster/squad-cli": "latest"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0",
+    "typescript": "^5.3.0"
+  },
+  "keywords": [
+    "squad",
+    "approval",
+    "human-in-the-loop",
+    "governance"
+  ]
+}
