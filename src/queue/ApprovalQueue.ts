@@ -1,4 +1,4 @@
-import { ApprovalItem, ApprovalStatus } from './ApprovalItem.js';
+import { ApprovalItem, ApprovalStatus } from '../models/ApprovalItem.js';
 
 export class ApprovalQueue {
   private items: Map<string, ApprovalItem> = new Map();

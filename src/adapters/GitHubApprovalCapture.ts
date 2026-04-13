@@ -1,6 +1,15 @@
 import { ApprovalQueue } from '../queue/ApprovalQueue.js';
 import { ApprovalItem } from '../models/ApprovalItem.js';
 
+export interface PREvent {
+  prNumber: number;
+  prUrl: string;
+  title: string;
+  body: string;
+  diffSummary?: string;
+  labels?: string[];
+}
+
 export class GitHubApprovalCapture {
   private queue: ApprovalQueue;
 
@@ -8,22 +17,40 @@ export class GitHubApprovalCapture {
     this.queue = queue;
   }
 
-  async onPROpened(prNumber: number, prUrl: string, title: string, body: string): Promise<ApprovalItem> {
-    // TODO: Create ApprovalItem from GitHub PR event
-    // Extract PR context (diff summary, reviewers, etc.)
+  async onPROpened(prNumber: number, prUrl: string, title: string, body: string, diffSummary?: string): Promise<ApprovalItem> {
+    const item = ApprovalItem.fromGitHubPR(prNumber, prUrl, title, body);
+    if (diffSummary) {
+      item.context.affectedFiles = [diffSummary];
+    }
+    this.queue.add(item);
+    return item;
+  }
+
+  async onPRLabeled(prNumber: number, prUrl: string, title: string, body: string, label: string): Promise<ApprovalItem | null> {
+    if (label !== 'needs-approval') {
+      return null;
+    }
+    const existingId = `github-pr-${prNumber}`;
+    const existing = this.queue.get(existingId);
+    if (existing) {
+      return existing;
+    }
     const item = ApprovalItem.fromGitHubPR(prNumber, prUrl, title, body);
     this.queue.add(item);
     return item;
   }
 
-  async onPRLabeled(prNumber: number, label: string): Promise<ApprovalItem | null> {
-    // TODO: Watch for 'needs-approval' label on PR
-    // Create or update ApprovalItem if label applied
-    return null;
-  }
+  async onPRCommented(prNumber: number, commentBody: string, commenter: string): Promise<void> {
+    const itemId = `github-pr-${prNumber}`;
+    const item = this.queue.get(itemId);
+    if (!item) return;
 
-  async onPRCommented(prNumber: number, commentBody: string): Promise<void> {
-    // TODO: Listen for approval/rejection comments
-    // Trigger approve/reject on queue item
+    const lowerBody = commentBody.toLowerCase().trim();
+    if (lowerBody.startsWith('/approve')) {
+      this.queue.approve(itemId, commenter);
+    } else if (lowerBody.startsWith('/reject')) {
+      const reason = commentBody.replace(/^\/reject\s*/i, '').trim() || 'Rejected via PR comment';
+      this.queue.reject(itemId, commenter, reason);
+    }
   }
 }

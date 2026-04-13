@@ -1,30 +1,66 @@
 import { ApprovalQueue } from '../queue/ApprovalQueue.js';
 import { ApprovalItem } from '../models/ApprovalItem.js';
 
+export interface StaleItemReport {
+  item: ApprovalItem;
+  reason: string;
+  ageMs: number;
+}
+
+export interface NotificationSender {
+  send(message: string): Promise<void>;
+}
+
 export class ApprovalMonitor {
   private queue: ApprovalQueue;
-  private staleThresholdMs: number = 3600000; // 1 hour
+  private staleThresholdMs: number;
+  private intervalMs: number;
+  private notifier?: NotificationSender;
+  private lastEscalation: StaleItemReport[] = [];
 
-  constructor(queue: ApprovalQueue, staleThresholdMs?: number) {
+  constructor(queue: ApprovalQueue, staleThresholdMs: number = 3600000, intervalMs: number = 3600000) {
     this.queue = queue;
-    if (staleThresholdMs) {
-      this.staleThresholdMs = staleThresholdMs;
+    this.staleThresholdMs = staleThresholdMs;
+    this.intervalMs = intervalMs;
+  }
+
+  setNotifier(notifier: NotificationSender): void {
+    this.notifier = notifier;
+  }
+
+  getIntervalMs(): number {
+    return this.intervalMs;
+  }
+
+  checkStale(): StaleItemReport[] {
+    const pendingItems = this.queue.pending();
+    const staleItems = pendingItems.filter(item => item.isStale(this.staleThresholdMs));
+    return staleItems.map(item => ({
+      item,
+      reason: `Item has been pending for ${Math.floor(item.getAge() / 60000)} minutes (threshold: ${Math.floor(this.staleThresholdMs / 60000)} minutes)`,
+      ageMs: item.getAge(),
+    }));
+  }
+
+  async escalateStale(): Promise<StaleItemReport[]> {
+    const staleReports = this.checkStale();
+    this.lastEscalation = staleReports;
+
+    if (this.notifier && staleReports.length > 0) {
+      for (const report of staleReports) {
+        const message = `⚠️ Stale approval: [${report.item.id}] "${report.item.title}" - ${report.reason}`;
+        await this.notifier.send(message);
+      }
     }
+
+    return staleReports;
   }
 
-  checkStale(): ApprovalItem[] {
-    // TODO: Identify items > 1 hour old
-    // Return list of stale items with reason
-    return this.queue.pending().filter(item => item.isStale(this.staleThresholdMs));
+  async runCheck(): Promise<StaleItemReport[]> {
+    return this.escalateStale();
   }
 
-  async escalateStale(): Promise<void> {
-    // TODO: Send notification via comms adapter
-    // Include item summary and approval link
-  }
-
-  async runCheck(): Promise<void> {
-    // TODO: Can be registered as Ralph monitor task
-    // Runs on configured interval (default 1h)
+  getLastEscalation(): StaleItemReport[] {
+    return this.lastEscalation;
   }
 }

@@ -8,8 +8,10 @@ export class DelegateCommand {
   }
 
   async execute(id: string, delegateTo: string): Promise<void> {
-    // TODO: Implement `squad inbox delegate <id> --to=@person` command
-    // Store delegated_to field
-    // Send notification to assignee
+    const item = this.queue.get(id);
+    if (!item) {
+      throw new Error(`Approval item ${id} not found`);
+    }
+    item.metadata.delegatedTo = delegateTo;
   }
 }

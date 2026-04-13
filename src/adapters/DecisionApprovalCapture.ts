@@ -9,19 +9,25 @@ export class DecisionApprovalCapture {
   }
 
   async onDecisionInbox(filePath: string, title: string, agentReasoning: string): Promise<ApprovalItem> {
-    // TODO: Watch .squad/decisions/inbox/ for new files
-    // Parse decision file to extract context
     const item = ApprovalItem.fromDecisionFile(filePath, title, agentReasoning);
     this.queue.add(item);
     return item;
   }
 
-  async onDecisionMoved(fromPath: string, toPath: string): Promise<void> {
-    // TODO: When decision moved from inbox/ to approved/
-    // Update corresponding queue item status
+  async onDecisionMoved(itemId: string, toPath: string): Promise<void> {
+    const item = this.queue.get(itemId);
+    if (!item) return;
+
+    if (toPath.includes('approved')) {
+      this.queue.approve(itemId, 'system');
+    } else if (toPath.includes('rejected')) {
+      this.queue.reject(itemId, 'system', 'Decision file moved to rejected');
+    }
   }
 
-  async onDecisionApproved(filePath: string): Promise<void> {
-    // TODO: Mark decision-based items as approved when file moved to decisions/approved/
+  async onDecisionApproved(itemId: string, approver: string = 'system'): Promise<void> {
+    const item = this.queue.get(itemId);
+    if (!item) return;
+    this.queue.approve(itemId, approver);
   }
 }

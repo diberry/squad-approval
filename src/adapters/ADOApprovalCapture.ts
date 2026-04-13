@@ -9,20 +9,25 @@ export class ADOApprovalCapture {
   }
 
   async onWorkItemEscalated(workItemId: string, workItemUrl: string, title: string, priority: string): Promise<ApprovalItem> {
-    // TODO: Listen to ADO work item state changes
-    // Create ApprovalItem for escalated items
     const item = ApprovalItem.fromADOWorkItem(workItemId, workItemUrl, title, priority);
     this.queue.add(item);
     return item;
   }
 
-  async onApprovalGateTriggered(workItemId: string, gateName: string): Promise<ApprovalItem | null> {
-    // TODO: Integrate with SDK's HookPipeline
-    // Create item when approval gate triggered
-    return null;
+  async onApprovalGateTriggered(workItemId: string, workItemUrl: string, gateName: string, title: string): Promise<ApprovalItem> {
+    const item = ApprovalItem.fromADOWorkItem(workItemId, workItemUrl, title, `Gate: ${gateName}`);
+    item.context.agentReasoning = `Approval gate "${gateName}" triggered for work item ${workItemId}`;
+    this.queue.add(item);
+    return item;
   }
 
   async onWorkItemStateChanged(workItemId: string, fromState: string, toState: string): Promise<void> {
-    // TODO: Track state transitions for approval workflow
+    const itemId = `ado-escalation-${workItemId}`;
+    const item = this.queue.get(itemId);
+    if (!item) return;
+
+    if (toState.toLowerCase() === 'closed' || toState.toLowerCase() === 'resolved') {
+      this.queue.approve(itemId, 'ado-system');
+    }
   }
 }
