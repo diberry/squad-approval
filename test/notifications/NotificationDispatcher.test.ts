@@ -6,6 +6,7 @@ describe('NotificationDispatcher', () => {
 
   beforeEach(() => {
     dispatcher = new NotificationDispatcher();
+    dispatcher.setQuietHours({ startHour: 19, endHour: 8, enabled: false });
   });
 
   it('sendToComms() routes notification to GitHub/ADO/Teams', async () => {

@@ -91,7 +91,7 @@ import('./dist/index.js').then(({ ApprovalItem, ApprovalQueue, InboxCommand }) =
   queue.add(decision);
   
   const cmd = new InboxCommand(queue);
-  console.log(cmd.list());
+  console.log(await cmd.list());
 }).catch(e => console.error(e));
 "
 ```

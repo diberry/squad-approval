@@ -177,7 +177,7 @@ node -e "
   import('./dist/index.js').then(({ ApprovalQueue, InboxCommand }) => {
     const q = new ApprovalQueue();
     const cmd = new InboxCommand(q);
-    console.log(cmd.list());
+    console.log(await cmd.list());
   });
 "
 ```
@@ -196,7 +196,7 @@ console.log(`Approved: ${item.title}`);
 - **In-memory queue** for fast access; backed by file storage for durability
 - **TDD approach** — all features start with test cases before implementation
 - **Event-driven** — approval status changes emit events on Squad SDK EventBus
-- **CLI-first MVP** — command-line interface before web dashboard
+- **CLI-first MVP** — command-line interface; web dashboard planned for future phase
 - **Modular adapters** — easy to add new approval sources (Slack, Jira, etc.)
 
 ## Roadmap
@@ -207,7 +207,8 @@ console.log(`Approved: ${item.title}`);
 **Phase 4**: Stale monitoring & Ralph integration  
 **Phase 5**: Notification dispatcher  
 **Phase 6**: Expiry & auto-escalation logic  
-**Phase 7**: Analytics & web dashboard
+**Phase 7**: Analytics & metrics reporting  
+**Roadmap**: Web dashboard (not yet implemented — see `src/web/server.ts` stub)
 
 ## License
 

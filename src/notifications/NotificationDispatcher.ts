@@ -43,6 +43,8 @@ export class NotificationDispatcher {
   }
 
   async sendToComms(adapter: string, itemId: string, title: string, approvalLink: string): Promise<void> {
+    if (!this.shouldSendNotification()) return;
+
     const message: NotificationMessage = {
       adapter,
       itemId,
@@ -59,6 +61,8 @@ export class NotificationDispatcher {
   }
 
   async sendApprovalRequest(itemId: string, itemType: string, title: string): Promise<void> {
+    if (!this.shouldSendNotification()) return;
+
     const message: NotificationMessage = {
       adapter: 'default',
       itemId,
@@ -73,6 +77,8 @@ export class NotificationDispatcher {
   }
 
   async sendReminder(itemId: string, age: string): Promise<void> {
+    if (!this.shouldSendNotification()) return;
+
     const message: NotificationMessage = {
       adapter: 'default',
       itemId,
