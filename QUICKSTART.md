@@ -15,6 +15,7 @@ git clone <repo-url>
 cd project-squad-sdk-example-approval
 npm install
 npm run build
+npm link   # makes the 'squad-approval' command available globally
 npm test
 ```
 
@@ -32,29 +33,14 @@ npm test
 ## Step 1: Create an Approval Request
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const queue = new m.ApprovalQueue();
-  
-  const pr = m.ApprovalItem.fromGitHubPR(
-    42,
-    'https://github.com/bradygaster/squad-sdk/pull/42',
-    'feat: add webhook retry logic',
-    'Improves resilience of event delivery'
-  );
-  pr.context.agentReasoning = 'Agent determined this affects critical path; needs human review';
-  pr.context.affectedFiles = ['src/webhooks/retry.ts', 'test/webhooks/retry.test.ts'];
-  
-  queue.add(pr);
-  console.log('✓ Created approval:', pr.id);
-}).catch(e => console.error(e));
-"
+squad-approval create --type decision --title "Use JWT for auth" --agent keaton --reason "Auth decision needed"
 ```
 
 **Expected output:**
 ```
-✓ Created approval: github-pr-42
+✓ Created approval: decision-1705328000000
+  Type:  decision
+  Title: Use JWT for auth
 ```
 
 ---
@@ -62,30 +48,14 @@ import('./dist/index.js').then(m => {
 ## Step 2: List Pending Approvals
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const queue = new m.ApprovalQueue();
-  
-  const pr = m.ApprovalItem.fromGitHubPR(
-    42,
-    'https://github.com/bradygaster/squad-sdk/pull/42',
-    'feat: add webhook retry logic',
-    'Improves resilience'
-  );
-  queue.add(pr);
-  
-  const cmd = new m.InboxCommand(queue);
-  console.log(cmd.list());
-}).catch(e => console.error(e));
-"
+squad-approval list
 ```
 
 **Expected output:**
 ```
-ID                   Type           Title                              Age
-─────────────────────────────────────────────────────────────────────────────
-github-pr-42         github-pr      feat: add webhook retry logic      1s
+ID                        Type               Title                              Age
+─────────────────────────────────────────────────────────────────────────────────
+decision-1705328000000    decision           Use JWT for auth                   1s
 
 Total: 1 pending approval
 ```
@@ -95,33 +65,14 @@ Total: 1 pending approval
 ## Step 3: Approve an Item
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const queue = new m.ApprovalQueue();
-  
-  const pr = m.ApprovalItem.fromGitHubPR(
-    42,
-    'https://github.com/bradygaster/squad-sdk/pull/42',
-    'feat: add webhook retry',
-    'Test'
-  );
-  queue.add(pr);
-  
-  const item = queue.approve('github-pr-42', 'alice@example.com');
-  
-  console.log('Status:', item.status);
-  console.log('Approved by:', item.metadata.approvedBy);
-  console.log('Approved at:', item.metadata.approvedAt);
-}).catch(e => console.error(e));
-"
+squad-approval approve decision-1705328000000 --reason "Looks good"
 ```
 
 **Expected output:**
 ```
-Status: approved
-Approved by: alice@example.com
-Approved at: 2024-01-15T10:30:45.123Z
+✓ Approved: Use JWT for auth
+  By: cli-user
+  At: 2024-01-15T10:30:45.123Z
 ```
 
 ---
@@ -129,143 +80,51 @@ Approved at: 2024-01-15T10:30:45.123Z
 ## Step 4: Reject an Item
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const queue = new m.ApprovalQueue();
-  
-  const decision = m.ApprovalItem.fromDecisionFile(
-    '.squad/decisions/inbox/use-backoff.md',
-    'Exponential backoff strategy',
-    'Agent reasoning...'
-  );
-  queue.add(decision);
-  
-  const item = queue.reject(
-    'decision-' + decision.id,
-    'bob@example.com',
-    'Linear backoff is simpler; reconsider after performance tests'
-  );
-  
-  console.log('Status:', item.status);
-  console.log('Reason:', item.metadata.rejectionReason);
-  console.log('Rejected by:', item.metadata.rejectedBy);
-}).catch(e => console.error(e));
-"
+squad-approval create --type decision --title "Exponential backoff strategy" --agent smith --reason "Backoff approach"
+squad-approval reject decision-1705328100000 --reason "Linear backoff is simpler; reconsider after performance tests"
 ```
 
 **Expected output:**
 ```
-Status: rejected
-Reason: Linear backoff is simpler; reconsider after performance tests
-Rejected by: bob@example.com
+✗ Rejected: Exponential backoff strategy
+  Reason: Linear backoff is simpler; reconsider after performance tests
+  By: cli-user
 ```
 
 ---
 
-## Step 5: Check Approval Audit Trail
+## Step 5: Check Queue Status
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const queue = new m.ApprovalQueue();
-  
-  const pr = m.ApprovalItem.fromGitHubPR(
-    42,
-    'https://github.com/bradygaster/squad-sdk/pull/42',
-    'feat: add webhook retry',
-    'Test'
-  );
-  queue.add(pr);
-  queue.approve('github-pr-42', 'alice@example.com');
-  
-  const item = queue.get('github-pr-42');
-  
-  console.log('─ Approval Audit Trail');
-  console.log('Title:', item.title);
-  console.log('Type:', item.type);
-  console.log('Status:', item.status);
-  console.log('Created:', item.createdAt);
-  console.log('');
-  console.log('Approval Details:');
-  console.log('  Approved by:', item.metadata.approvedBy);
-  console.log('  Approved at:', item.metadata.approvedAt);
-  console.log('');
-  console.log('Context:');
-  console.log('  Reasoning:', item.context.agentReasoning || '(not set)');
-  console.log('  Files:', item.context.affectedFiles || '(none)');
-}).catch(e => console.error(e));
-"
+squad-approval status
 ```
 
 **Expected output:**
 ```
-─ Approval Audit Trail
-Title: feat: add webhook retry
-Type: github-pr
-Status: approved
-Created: 2024-01-15T10:30:00.000Z
-
-Approval Details:
-  Approved by: alice@example.com
-  Approved at: 2024-01-15T10:30:45.123Z
-
-Context:
-  Reasoning: (not set)
-  Files: (none)
+Approval Queue Status
+──────────────────────────────
+  Pending:  0
+  Approved: 1
+  Rejected: 1
+  Expired:  0
+  Total:    2
 ```
 
 ---
 
-## Next Steps: Priority & Stale Detection
+## CLI Reference
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const queue = new m.ApprovalQueue();
-  
-  const old = new m.ApprovalItem(
-    'old-pr',
-    'github-pr',
-    'Old PR (2 hours pending)',
-    'Should be stale'
-  );
-  old.createdAt = new Date(Date.now() - 2 * 3600000);
-  
-  const fresh = m.ApprovalItem.fromGitHubPR(
-    99,
-    'https://github.com/.../99',
-    'Fresh PR (5 min old)',
-    'Just created'
-  );
-  const escalation = m.ApprovalItem.fromADOWorkItem(
-    'ado-001',
-    'https://...',
-    'Budget request',
-    'high'
-  );
-  
-  queue.add(old);
-  queue.add(fresh);
-  queue.add(escalation);
-  
-  console.log('Sorted by priority (stale + escalations first):');
-  queue.sortByPriority().forEach((item, i) => {
-    console.log(\`  \${i + 1}. [\${item.type}] \${item.title.slice(0, 40)}\`);
-  });
-}).catch(e => console.error(e));
-"
+squad-approval --help
 ```
 
-**Expected output:**
-```
-Sorted by priority (stale + escalations first):
-  1. [ado-escalation] Budget request
-  2. [github-pr] Old PR (2 hours pending)
-  3. [github-pr] Fresh PR (5 min old)
-```
+| Command   | Description                          | Example                                                                 |
+|-----------|--------------------------------------|-------------------------------------------------------------------------|
+| `create`  | Create a new approval request        | `squad-approval create --type decision --title "Use JWT" --agent keaton --reason "Auth"` |
+| `list`    | List pending approvals               | `squad-approval list`                                                   |
+| `approve` | Approve a pending item               | `squad-approval approve <id> --reason "Looks good"`                     |
+| `reject`  | Reject a pending item (reason required) | `squad-approval reject <id> --reason "Need more context"`            |
+| `status`  | Show queue summary                   | `squad-approval status`                                                 |
 
 ---
 

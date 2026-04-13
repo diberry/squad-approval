@@ -4,6 +4,9 @@
   "description": "Human Approval & Escalation Hub built on Squad SDK",
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "squad-approval": "dist/cli/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "test": "vitest"

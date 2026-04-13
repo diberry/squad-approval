@@ -11,6 +11,7 @@ git clone <repo-url>
 cd project-squad-sdk-example-approval
 npm install
 npm run build
+npm link   # makes the 'squad-approval' command available globally
 npm test
 ```
 
@@ -32,144 +33,72 @@ Default approval timeout is **24 hours**; items automatically marked `expired` a
 ### Submit an Approval Request
 
 ```bash
-# Create a GitHub PR approval request (programmatic)
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const pr = m.ApprovalItem.fromGitHubPR(
-    42,
-    'https://github.com/bradygaster/squad-sdk/pull/42',
-    'feat: add webhook retry logic',
-    'Improves resilience of event delivery'
-  );
-  pr.context.agentReasoning = 'Agent determined this affects critical path';
-  const q = new m.ApprovalQueue();
-  q.add(pr);
-  console.log('✓ Submitted approval request:', pr.id);
-}).catch(e => console.error(e));
-"
+squad-approval create --type decision --title "Use JWT for auth" --agent keaton --reason "Auth decision needed"
 ```
 
-Or create from decision files or ADO work items:
-
-```bash
-# Decision file
-const decision = ApprovalItem.fromDecisionFile(
-  '.squad/decisions/inbox/use-exponential-backoff.md',
-  'Architecture decision: exponential backoff strategy',
-  'Proposed by AgentSmith'
-);
-
-# ADO work item
-const escalation = ApprovalItem.fromADOWorkItem(
-  'devops-2024-001',
-  'https://dev.azure.com/bradygaster/squad/-/workitems/12345',
-  'Budget allocation: $5000 for monitoring tools',
-  'high'
-);
+**Expected output:**
+```
+✓ Created approval: decision-1705328000000
+  Type:  decision
+  Title: Use JWT for auth
 ```
 
 ### List Pending Approvals
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const q = new m.ApprovalQueue();
-  const cmd = new m.InboxCommand(q);
-  console.log(cmd.list());
-}).catch(e => console.error(e));
-"
+squad-approval list
 ```
 
 **Expected output:**
 ```
 ID                        Type               Title                              Age
 ─────────────────────────────────────────────────────────────────────────────────
-github-pr-42              github-pr          feat: add webhook retry logic      1m
-decision-1705328000000    decision           Architecture: exponential backoff  5m
+decision-1705328000000    decision           Use JWT for auth                   1m
 
-Total: 2 pending approvals
+Total: 1 pending approval
 ```
 
 ### Approve an Item
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const q = new m.ApprovalQueue();
-  const item = q.approve('github-pr-42', 'alice@example.com');
-  console.log('✓ Approved:', item.title);
-  console.log('By:', item.metadata.approvedBy);
-  console.log('At:', item.metadata.approvedAt);
-}).catch(e => console.error(e));
-"
+squad-approval approve decision-1705328000000 --reason "Looks good"
 ```
 
 **Expected output:**
 ```
-✓ Approved: feat: add webhook retry logic
-By: alice@example.com
-At: 2024-01-15T10:30:45.123Z
+✓ Approved: Use JWT for auth
+  By: cli-user
+  At: 2024-01-15T10:30:45.123Z
 ```
 
 ### Reject an Item
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const q = new m.ApprovalQueue();
-  const item = q.reject(
-    'decision-1705328000000',
-    'bob@example.com',
-    'Linear backoff is simpler; reconsider after performance tests'
-  );
-  console.log('✗ Rejected:', item.title);
-  console.log('Reason:', item.metadata.rejectionReason);
-  console.log('By:', item.metadata.rejectedBy);
-}).catch(e => console.error(e));
-"
+squad-approval reject decision-1705328000000 --reason "Need more context before deciding"
 ```
 
 **Expected output:**
 ```
-✗ Rejected: Architecture: exponential backoff
-Reason: Linear backoff is simpler; reconsider after performance tests
-By: bob@example.com
+✗ Rejected: Use JWT for auth
+  Reason: Need more context before deciding
+  By: cli-user
 ```
 
-### View Approval Audit Trail
+### View Queue Status
 
 ```bash
-npm run build
-node -e "
-import('./dist/index.js').then(m => {
-  const q = new m.ApprovalQueue();
-  const item = q.get('github-pr-42');
-  console.log('Item:', item.title);
-  console.log('Type:', item.type);
-  console.log('Status:', item.status);
-  console.log('Created:', item.createdAt);
-  console.log('Approved by:', item.metadata.approvedBy);
-  console.log('Approved at:', item.metadata.approvedAt);
-  console.log('Context - Reasoning:', item.context.agentReasoning);
-  console.log('Context - Files:', item.context.affectedFiles);
-}).catch(e => console.error(e));
-"
+squad-approval status
 ```
 
 **Expected output:**
 ```
-Item: feat: add webhook retry logic
-Type: github-pr
-Status: approved
-Created: 2024-01-15T10:30:00.000Z
-Approved by: alice@example.com
-Approved at: 2024-01-15T10:30:45.123Z
-Context - Reasoning: Agent determined this affects critical path
-Context - Files: src/webhooks/retry.ts, test/webhooks/retry.test.ts
+Approval Queue Status
+──────────────────────────────
+  Pending:  0
+  Approved: 1
+  Rejected: 0
+  Expired:  0
+  Total:    1
 ```
 
 ## Extending This Example
@@ -231,7 +160,6 @@ queue.sortByPriority();  // Stale + escalations first
 // Act
 queue.approve(id, email);
 queue.reject(id, email, reason);
-queue.delegate(id, targetEmail);
 
 // Read audit
 const item = queue.get(id);
@@ -241,7 +169,7 @@ console.log(item.status, item.metadata);
 ### Architecture Overview
 
 ```
-CLI Commands (approve, reject, list, delegate)
+CLI Commands (approve, reject, list, status)
          ↓
 ApprovalQueue (in-memory + file persistence)
          ↓
@@ -272,9 +200,8 @@ src/
 │   ├── commands/
 │   │   ├── inbox.ts                 # List pending approvals
 │   │   ├── approve.ts               # Approve an item
-│   │   ├── reject.ts                # Reject with reason
-│   │   └── delegate.ts              # Delegate to person
-│   └── index.ts
+│   │   └── reject.ts                # Reject with reason
+│   └── index.ts                     # CLI entry point (bin)
 ├── monitoring/
 │   └── ApprovalMonitor.ts           # Stale detection & escalation
 ├── notifications/
